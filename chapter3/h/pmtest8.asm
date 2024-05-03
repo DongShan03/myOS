@@ -374,22 +374,22 @@ PSwitch:
 	loop	.2
 
 	; 在此假设内存是大于 8M 的
-	mov	eax, LinearAddrDemo
-	shr	eax, 22
-	mov	ebx, 4096
-	mul	ebx
-	mov	ecx, eax
-	mov	eax, LinearAddrDemo
-	shr	eax, 12
-	and	eax, 03FFh	; 1111111111b (10 bits)
-	mov	ebx, 4
-	mul	ebx
-	add	eax, ecx
-	add	eax, PageTblBase1
-	mov	dword [es:eax], ProcBar | PG_P | PG_USU | PG_RWW
+	mov	eax, LinearAddrDemo			;LinearAddrDemo = 00401000h
+	shr	eax, 22						;eax >> 22   eax = 00000002h
+	mov	ebx, 4096					;ebx = 4096 = 2^12
+	mul	ebx							;eax = eax * ebx = eax << 12 = 00002000h
+	mov	ecx, eax					;ecx = 00002000h
+	mov	eax, LinearAddrDemo			;eax = 00401000h
+	shr	eax, 12						;eax = 00000401h
+	and	eax, 03FFh	; 1111111111b (10 bits)		;eax = 00000001h
+	mov	ebx, 4						;ebx = 4 = 2^2
+	mul	ebx							;eax = eax * ebx = 00000004h
+	add	eax, ecx					;eax = ecx + eax = 00002004h
+	add	eax, PageTblBase1			;eax = eax + PageTblBase1 = 00002004h + 00211000h = 00213004h
+	mov	dword [es:eax], ProcBar | PG_P | PG_USU | PG_RWW		; [es:eax] = 00501000h | 1 | 4 | 2 = 00501007h
 
-	mov	eax, PageDirBase1
-	mov	cr3, eax
+	mov	eax, PageDirBase1			;eax = 00210000h
+	mov	cr3, eax					;cr3 = 00210000h 切换页目录起始地址
 	jmp	short .3
 .3:
 	nop
