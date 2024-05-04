@@ -5,6 +5,7 @@
                                                     Forrest Yu, 2005
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 
+#include "type.h"
 #ifndef	_ORANGES_PROTECT_H_
 #define	_ORANGES_PROTECT_H_
 

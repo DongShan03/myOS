@@ -16,6 +16,36 @@
 
 /*======================================================================*
                             kernel_main
+
+typedef struct s_proc {
+	STACK_FRAME regs;          // 寄存器保存在该结构体中 
+	u16 ldt_sel;               // 全局描述符表选择子给出ldt的基址和限长 
+	DESCRIPTOR ldts[LDT_SIZE]; // local descriptors for code and data 
+	u32 pid;                   // process id passed in from MM 
+	char p_name[16];           // name of the process 
+}PROCESS;
+
+typedef struct s_stackframe {
+	u32	gs;			\                                 
+	u32	fs;			|                                 
+	u32	es;			|                                 
+	u32	ds;			|                                 
+	u32	edi;		|                                 
+	u32	esi;		| pushed by save()                
+	u32	ebp;		|                                 
+	u32	kernel_esp;	<- 'popad' will ignore it         
+	u32	ebx;		|                                 
+	u32	edx;		|                                 
+	u32	ecx;		|                                 
+	u32	eax;		/                                 
+	u32	retaddr;	return addr for kernel.asm::save()
+	u32	eip;		\                                 
+	u32	cs;			|                                 
+	u32	eflags;		| pushed by CPU during interrupt  
+	u32	esp;		|                                 
+	u32	ss;			/                                 
+}STACK_FRAME;
+
  *======================================================================*/
 PUBLIC int kernel_main()
 {
@@ -23,7 +53,7 @@ PUBLIC int kernel_main()
 
 	PROCESS* p_proc	= proc_table;
 
-	p_proc->ldt_sel	= SELECTOR_LDT_FIRST;
+	p_proc->ldt_sel	= SELECTOR_LDT_FIRST;	// 0x28
 	memcpy(&p_proc->ldts[0], &gdt[SELECTOR_KERNEL_CS>>3], sizeof(DESCRIPTOR));
 	p_proc->ldts[0].attr1 = DA_C | PRIVILEGE_TASK << 5;	// change the DPL
 	memcpy(&p_proc->ldts[1], &gdt[SELECTOR_KERNEL_DS>>3], sizeof(DESCRIPTOR));
