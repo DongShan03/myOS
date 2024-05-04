@@ -385,8 +385,8 @@ PSwitch:
 	mov	ebx, 4						;ebx = 4 = 2^2
 	mul	ebx							;eax = eax * ebx = 00000004h
 	add	eax, ecx					;eax = ecx + eax = 00002004h
-	add	eax, PageTblBase1			;eax = eax + PageTblBase1 = 00002004h + 00211000h = 00213004h
-	mov	dword [es:eax], ProcBar | PG_P | PG_USU | PG_RWW		; [es:eax] = 00501000h | 1 | 4 | 2 = 00501007h
+	add	eax, PageTblBase1			;eax = eax + PageTblBase1 = 00002004h + 00211000h = 00213004h		这里其实在计算LinearAddrDemo的线性地址
+	mov	dword [es:eax], ProcBar | PG_P | PG_USU | PG_RWW		; [es:eax] = 00501000h | 1 | 4 | 2 = 00501007h   相当于直接修改映射方向
 
 	mov	eax, PageDirBase1			;eax = 00210000h
 	mov	cr3, eax					;cr3 = 00210000h 切换页目录起始地址

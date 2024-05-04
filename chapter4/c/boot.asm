@@ -17,8 +17,8 @@ BaseOfStack		equ	07c00h	; Boot状态下堆栈基地址(栈底, 从这个位置�
 BaseOfLoader		equ	09000h	; LOADER.BIN 被加载到的位置 ----  段地址
 OffsetOfLoader		equ	0100h	; LOADER.BIN 被加载到的位置 ---- 偏移地址
 
-RootDirSectors		equ	14	; 根目录占用空间
-SectorNoOfRootDirectory	equ	19	; Root Directory 的第一个扇区号
+RootDirSectors		equ	14	; 根目录占用空间						数据区的位置 = 根目录起始位置 + 根目录占用空间
+SectorNoOfRootDirectory	equ	19	; Root Directory 的第一个扇区号		根目录起始的扇区号为19
 SectorNoOfFAT1		equ	1	; FAT1 的第一个扇区号 = BPB_RsvdSecCnt
 DeltaSectorNo		equ	17	; DeltaSectorNo = BPB_RsvdSecCnt + (BPB_NumFATs * FATSz) - 2
 					; 文件的开始Sector号 = DirEntry中的开始Sector号 + 根目录占用Sector数目 + DeltaSectorNo
@@ -53,7 +53,7 @@ LABEL_START:
 	mov	ds, ax
 	mov	es, ax
 	mov	ss, ax
-	mov	sp, BaseOfStack
+	mov	sp, BaseOfStack		;栈底(高地址)
 
 	; 清屏
 	mov	ax, 0600h		; AH = 6,  AL = 0h
@@ -70,25 +70,26 @@ LABEL_START:
 	int	13h	; ┛
 	
 ; 下面在 A 盘的根目录寻找 LOADER.BIN
-	mov	word [wSectorNo], SectorNoOfRootDirectory
+	mov	word [wSectorNo], SectorNoOfRootDirectory 	;word[0] = 19
+	
 LABEL_SEARCH_IN_ROOT_DIR_BEGIN:
-	cmp	word [wRootDirSizeForLoop], 0	; ┓
-	jz	LABEL_NO_LOADERBIN		; ┣ 判断根目录区是不是已经读完
-	dec	word [wRootDirSizeForLoop]	; ┛ 如果读完表示没有找到 LOADER.BIN
+	cmp	word [wRootDirSizeForLoop], 0	; ┓	wRootDirSizeForLoop = RootDirSectors = 14
+	jz	LABEL_NO_LOADERBIN				; ┣ 判断根目录区是不是已经读完	根目录占用14个扇区
+	dec	word [wRootDirSizeForLoop]		; ┛ 如果读完表示没有找到 LOADER.BIN
 	mov	ax, BaseOfLoader
 	mov	es, ax			; es <- BaseOfLoader
 	mov	bx, OffsetOfLoader	; bx <- OffsetOfLoader	于是, es:bx = BaseOfLoader:OffsetOfLoader
 	mov	ax, [wSectorNo]	; ax <- Root Directory 中的某 Sector 号
 	mov	cl, 1
-	call	ReadSector
-
+	call	ReadSector	; ReadSector 从第 ax 个 Sector 开始, 将 cl 个 Sector 读入 es:bx 中
+						; 从第 19 个 Sector 开始, 将 1 个 Sector 读入 BaseOfLoader:OffsetOfLoader 中
 	mov	si, LoaderFileName	; ds:si -> "LOADER  BIN"
 	mov	di, OffsetOfLoader	; es:di -> BaseOfLoader:0100 = BaseOfLoader*10h+100
 	cld
 	mov	dx, 10h
 LABEL_SEARCH_FOR_LOADERBIN:
 	cmp	dx, 0										; ┓循环次数控制,
-	jz	LABEL_GOTO_NEXT_SECTOR_IN_ROOT_DIR	; ┣如果已经读完了一个 Sector,
+	jz	LABEL_GOTO_NEXT_SECTOR_IN_ROOT_DIR			; ┣如果已经读完了一个 Sector,
 	dec	dx											; ┛就跳到下一个 Sector
 	mov	cx, 11
 LABEL_CMP_FILENAME:
@@ -105,10 +106,10 @@ LABEL_GO_ON:
 	jmp	LABEL_CMP_FILENAME	;	继续循环
 
 LABEL_DIFFERENT:
-	and	di, 0FFE0h						; else ┓	di &= E0 为了让它指向本条目开头
-	add	di, 20h							;     ┃
+	and	di, 0FFE0h							; else┓	di &= E0 为了让它指向本条目开头
+	add	di, 20h								;     ┃
 	mov	si, LoaderFileName					;     ┣ di += 20h  下一个目录条目
-	jmp	LABEL_SEARCH_FOR_LOADERBIN;    ┛
+	jmp	LABEL_SEARCH_FOR_LOADERBIN			;     ┛
 
 LABEL_GOTO_NEXT_SECTOR_IN_ROOT_DIR:
 	add	word [wSectorNo], 1
@@ -125,13 +126,13 @@ LABEL_NO_LOADERBIN:
 %endif
 
 LABEL_FILENAME_FOUND:			; 找到 LOADER.BIN 后便来到这里继续
-	mov	ax, RootDirSectors
+	mov	ax, RootDirSectors	;ax = 14
 	and	di, 0FFE0h		; di -> 当前条目的开始
 	add	di, 01Ah		; di -> 首 Sector
 	mov	cx, word [es:di]
 	push	cx			; 保存此 Sector 在 FAT 中的序号
 	add	cx, ax
-	add	cx, DeltaSectorNo	; cl <- LOADER.BIN的起始扇区号(0-based)
+	add	cx, DeltaSectorNo	; cl <- LOADER.BIN的起始扇区号(0-based) cx = 17
 	mov	ax, BaseOfLoader
 	mov	es, ax			; es <- BaseOfLoader
 	mov	bx, OffsetOfLoader	; bx <- OffsetOfLoader
@@ -149,9 +150,9 @@ LABEL_GOON_LOADING_FILE:
 
 	mov	cl, 1
 	call	ReadSector
-	pop	ax			; 取出此 Sector 在 FAT 中的序号
-	call	GetFATEntry
-	cmp	ax, 0FFFh
+	pop	ax				; 取出此 Sector 在 FAT 中的序号
+	call	GetFATEntry	;	找到序号为 ax 的 Sector 在 FAT 中的条目, 结果放在 ax 中
+	cmp	ax, 0FFFh		; 若ax = 0FFFh则表示这个簇已经是最后一个,完成文件读取
 	jz	LABEL_FILE_LOADED
 	push	ax			; 保存 Sector 在 FAT 中的序号
 	mov	dx, RootDirSectors
@@ -161,7 +162,7 @@ LABEL_GOON_LOADING_FILE:
 	jmp	LABEL_GOON_LOADING_FILE
 LABEL_FILE_LOADED:
 
-	mov	dh, 1			; "Ready."
+	mov	dh, 1				; "Ready."
 	call	DispStr			; 显示字符串
 
 ; *****************************************************************************************************
@@ -187,8 +188,8 @@ LoaderFileName		db	"LOADER  BIN", 0	; LOADER.BIN 之文件名
 ; 为简化代码, 下面每个字符串的长度均为 MessageLength
 MessageLength		equ	9
 BootMessage:		db	"Booting  "; 9字节, 不够则用空格补齐. 序号 0
-Message1		db	"Ready.   "; 9字节, 不够则用空格补齐. 序号 1
-Message2		db	"No LOADER"; 9字节, 不够则用空格补齐. 序号 2
+Message1			db	"Ready.   "; 9字节, 不够则用空格补齐. 序号 1
+Message2			db	"No LOADER"; 9字节, 不够则用空格补齐. 序号 2
 ;============================================================================
 
 
